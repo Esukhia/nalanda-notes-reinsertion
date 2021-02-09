@@ -6,9 +6,9 @@ from antx import transfer
 PARMA_META = {
     'derge': {
         'annotation': '《སྡེ》',
-        'work_id': 'W2KG209989',
-        'img_group_offset': 10051,
-        'pref': 'I2KG2',
+        'work_id': 'W23703',
+        'img_group_offset': 1316,
+        'pref': 'I',
     },
     'narthang': {
         'annotation': '《སྣར་》',
