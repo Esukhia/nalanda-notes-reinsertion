@@ -50,6 +50,17 @@ def get_pages(vol_text):
             pg_text = ""
     return result
 
+def get_text_pagewise(vol_text):
+    result = {}
+    pg_text = ""
+    pages = re.split(f"(\[[𰵀-󴉱]?\d+[a-b]+\])", vol_text)
+    for i, page in enumerate(pages[1:]):
+        if i % 2 == 0:
+            pg_idx = re.search("\[[𰵀-󴉱]?(\d+[a-b]+)\]", page).group(1)
+        else:
+            result[pg_idx] = page
+    return result
+
 def get_last_syl(chunk):
     chunks = re.split('་', chunk)
     if chunks[-1]: 
@@ -169,10 +180,8 @@ def get_page_num(page_pat):
         pg_num -= 1
     return pg_num
 
-def get_link(page, vol, parma = "derge"):
+def get_page_link(pg_num, vol, parma = "derge"):
     img_group_offset = PARMA_META[parma]['img_group_offset']
-    page_pat = re.search('\[[𰵀-󴉱]?([0-9]+)([a-z]{1})\]', page)
-    pg_num = get_page_num(page_pat)
     pref = PARMA_META[parma]['pref']
     igroup = f"{pref}{img_group_offset+vol}"
     link = f"[https://iiif.bdrc.io/bdr:{igroup}::{igroup}{int(pg_num):04}.jpg/full/max/0/default.jpg]"
@@ -182,7 +191,9 @@ def add_page_link(text, vol, parma="derge"):
     text_with_page_link = ''
     pages = get_pages(text)
     for page in pages:
-        pg_link = get_link(page, vol, parma)
+        page_pat = re.search('\[[𰵀-󴉱]?([0-9]+)([a-z]{1})\]', page)
+        pg_num = get_page_num(page_pat)
+        pg_link = get_page_link(pg_num, vol, parma)
         text_with_page_link += f'{page}\n{pg_link}\n'
     return text_with_page_link
 
@@ -205,10 +216,35 @@ def pipeline(text_id, vol_num, source_parma="derge", target_parma="pedurma"):
     new_text = reinsert_manual_note_2_text(hfml_text, pedurma_text, notes, vol_num, parma=target_parma)
     return new_text
 
+def get_img_num(pg_idx):
+    img_num = 0
+    pg_num = re.search('\d+', pg_idx)[0]
+    if 'a' in pg_idx:
+        img_num = int(pg_num)*2 - 1
+    else:
+        img_num = int(pg_num)*2
+    return img_num
+    
+def get_pg_preview(text_id, pg_idx, vol):
+    hfml_text = Path(f'./hfmls/derge_with_pedurma_pg_br/{text_id}.txt').read_text(encoding='utf-8')
+    notes = yaml.safe_load(Path(f'./new_notes/{text_id}.yml').read_text(encoding="utf-8"))
+    hfml_text_pagewise = get_text_pagewise(hfml_text)
+    cur_pg = hfml_text_pagewise[pg_idx]
+    img_num = get_img_num(pg_idx)
+    cur_pg_notes = notes[img_num]
+    pg_preview = reinsert_pedurma_notes(cur_pg, cur_pg_notes)
+    pg_preview_with_link = f'{pg_idx}-{img_num}{pg_preview}\n{get_page_link(img_num, vol, parma="pedurma")}'
+    return pg_preview_with_link
+
 if __name__ == "__main__":
-    vol_num = 1
+    # vol_num = 1
+    # text_id = "D3885"
+    # source_parma = "derge"
+    # target_parma = "pedurma"
+    # new_text = pipeline(text_id, vol_num, source_parma=source_parma, target_parma=target_parma)
+    # Path(f'./new_text/{target_parma}/{text_id}.txt').write_text(new_text, encoding='utf-8')
+    vol = 1
     text_id = "D1119"
-    source_parma = "derge"
-    target_parma = "pedurma"
-    new_text = pipeline(text_id, vol_num, source_parma=source_parma, target_parma=target_parma)
-    Path(f'./new_text/{target_parma}/{text_id}.txt').write_text(new_text, encoding='utf-8')
+    pg_idx = "114b"
+    pg_preview = get_pg_preview(text_id, pg_idx, vol)
+    Path('./preview_pg/preview_pg.txt').write_text(pg_preview, encoding='utf-8')
