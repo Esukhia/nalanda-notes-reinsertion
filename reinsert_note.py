@@ -2,6 +2,7 @@ import yaml
 import re
 from pathlib import Path
 from antx import transfer
+from antx.core import from_yaml
 
 PARMA_META = {
     'derge': {
@@ -116,8 +117,8 @@ def reinsert_notes(pg, notes, pub):
     return new_pg
 
 
-def construct_notes(note):
-    combined_notes = '<'
+def construct_notes(note_id, note):
+    combined_notes = f'<({note_id})'
     for pub, note_value in note.items():
         if note_value:
             combined_notes += f"{pub}{note_value},"
@@ -128,7 +129,7 @@ def construct_notes(note):
 def reinsert_pedurma_notes(pg, notes):
     new_pg = pg
     for note_id, note in notes.items():
-        combined_note = construct_notes(note)
+        combined_note = construct_notes(note_id, note)
         new_pg = re.sub('#', combined_note, new_pg, 1)
     return new_pg
 
@@ -169,13 +170,12 @@ def get_page_num(page_pat):
     return pg_num
 
 def get_link(page, vol, parma = "derge"):
-    work = PARMA_META[parma]['work_id']
     img_group_offset = PARMA_META[parma]['img_group_offset']
     page_pat = re.search('\[[𰵀-󴉱]?([0-9]+)([a-z]{1})\]', page)
     pg_num = get_page_num(page_pat)
     pref = PARMA_META[parma]['pref']
     igroup = f"{pref}{img_group_offset+vol}"
-    link = f"[https://www.tbrc.org/browser/ImageService?work={work}&igroup={igroup}&image={pg_num}&first=1&last=2000&fetchimg=yes]"
+    link = f"[https://iiif.bdrc.io/bdr:{igroup}::{igroup}{int(pg_num):04}.jpg/full/max/0/default.jpg]"
     return link
 
 def add_page_link(text, vol, parma="derge"):
@@ -186,7 +186,7 @@ def add_page_link(text, vol, parma="derge"):
         text_with_page_link += f'{page}\n{pg_link}\n'
     return text_with_page_link
 
-def reinsert_manual_note_2_text(hfml_text, pedurma_google_text, notes, parma = "derge"):
+def reinsert_manual_note_2_text(hfml_text, pedurma_google_text, notes, vol, parma = "derge"):
     text_with_google_linebreak = text_with_google_line_break(hfml_text, pedurma_google_text)
     pages = get_pages(text_with_google_linebreak)
 
@@ -195,4 +195,20 @@ def reinsert_manual_note_2_text(hfml_text, pedurma_google_text, notes, parma = "
         original_text_with_note = reformat_text_with_note(hfml_text, text_with_notes)
     else:
         original_text_with_note =text_with_notes
-    return original_text_with_note
+    text_with_pg_link = add_page_link(original_text_with_note, vol, parma)
+    return text_with_pg_link
+
+def pipeline(text_id, vol_num, source_parma="derge", target_parma="pedurma"):
+    hfml_text = Path(f'./hfmls/{source_parma}/{text_id}.txt').read_text(encoding='utf-8')
+    pedurma_text= Path(f'./hfmls/pedurma/{text_id}.txt').read_text(encoding='utf-8')
+    notes = yaml.safe_load(Path(f'./new_notes/{text_id}.yml').read_text(encoding="utf-8"))
+    new_text = reinsert_manual_note_2_text(hfml_text, pedurma_text, notes, vol_num, parma=target_parma)
+    return new_text
+
+if __name__ == "__main__":
+    vol_num = 1
+    text_id = "D1119"
+    source_parma = "derge"
+    target_parma = "pedurma"
+    new_text = pipeline(text_id, vol_num, source_parma=source_parma, target_parma=target_parma)
+    Path(f'./new_text/{target_parma}/{text_id}.txt').write_text(new_text, encoding='utf-8')
